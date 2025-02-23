@@ -20,7 +20,7 @@ void MMUOpenSwapFile() {
 
 void MMUInit() {
 	Memsim_Init(); // Set up simulated physical memory system.
-	MMUOpenSwapFile(); // Open swap file for use
+	MMUOpenSwapFile(); // Open swap file for use.
 	PT_Init(); // Set up page table register value storage per process.
 }
 

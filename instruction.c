@@ -1,162 +1,96 @@
+// Starting code version 1.0
+
 #include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
 
-#define MAX_VA 63          // Maximum virtual address (0 to 63)
-#define PAGE_SIZE 16       // Page size in bytes
-#define NUM_PAGES 4        // Number of pages in physical memory
-#define NUM_VIRTUAL_PAGES 4 // Number of virtual pages per process
+#include "memsim.h"
+#include "pagetable.h"
+#include "mmu.h"
 
-#define MAX_PROCESSES 4    // Maximum number of processes (PID 0 to 3)
+/*
+ * Searches the memory for a free page, and assigns it to the process's virtual address. If value is
+ * 0, the page has read only permissions, and if it is 1, it has read/write permissions.
+ * If the process does not already have a page table, one is assigned to it. If there are no more empty
+ * pages, the mapping fails.
+ */
+int Instruction_Map(int pid, int va, int value_in){
+	int pa;
+	char* physmem = Memsim_GetPhysMem();
 
-// Memory simulation structure
-char physmem[NUM_PAGES * PAGE_SIZE];  // Simulated physical memory
-int page_table_register[MAX_PROCESSES]; // Register pointing to page tables for each PID
+	if (value_in != 0 && value_in != 1) { //check for a valid value (instructions validate the value_in)
+		printf("Invalid value for map instruction. Value must be 0 or 1.\n");
+		return 1;
+	}
+	if((pa = PT_VPNtoPA(pid, VPN(va))) != -1) {
+		printf("Error: Virtual page already mapped into physical frame %d.\n", PFN(pa));
+		return 1;
+	} 
 
-// Page Table entry structure (VPN -> PFN, with permission)
-typedef struct {
-    int pfn;  // Physical frame number
-    int permission;  // 0: read-only, 1: read-write
-} PageTableEntry;
+	//todo
+	// Find first free Physical Page (frame) and claim it for the new requested Virtual Page (containing virtual address)
 
-// Page table for each process (each process has its own table in physical memory)
-PageTableEntry* page_tables[MAX_PROCESSES];
+	// If no empty page was found, we must evict a page to make room
 
-// Helper functions
-int VPN(int va) {
-    return va / PAGE_SIZE;  // Convert virtual address to virtual page number
+	// If there isn't already a page table, create one using the page found, and find a new page
+
+		printf("Put page table for PID %d into physical frame %d.\n", pid, PFN(pa));
+
+		// Init the Page table 
+
+	// Set the PTE with vals
+
+	printf("Mapped virtual address %d (page %d) into physical frame %d.\n", va, VPN(va), PFN(pa));
+	return 0;
 }
 
-int PAGE_OFFSET(int va) {
-    return va % PAGE_SIZE;  // Get offset within the page
+/**
+* If the virtual address is valid and has write permissions for the process, store
+* value in the virtual address specified.
+*/
+int Instruction_Store(int pid, int va, int value_in){
+	int pa;
+	char* physmem = Memsim_GetPhysMem();
+
+	if (value_in < 0 || value_in > MAX_VA) { //check for a valid value (instructions validate the value_in)
+		printf("Invalid value for store instruction. Value must be 0-255.\n"); 
+		return 1;
+	}
+	if (!PT_PIDHasWritePerm(pid, VPN(va))) { //check if memory is writable
+		printf("Error: virtual address %d does not have write permissions.\n", va);
+		return 1;
+	}
+
+	// todo
+	// Translate the virtual address into its physical address for the process
+	// Hint use MMU_TranslateAddress 
+
+	printf("Stored value %u at virtual address %d (physical address %d)\n", value_in, va, pa);
+
+	// Finally stores the value in the physical memory address, mapped from the virtual address
+	// Hint, modify a byte in physmem using a pa and value_in
+
+	return 0;
 }
 
-int PFN(int pa) {
-    return pa / PAGE_SIZE;  // Convert physical address to physical frame number
-}
+/*
+ * Translate the virtual address into its physical address for
+ * the process. If the virutal memory is mapped to valid physical memory, 
+ * return the value at the physical address. Permission checking is not needed,
+ * since we assume all processes have (at least) read permissions on pages.
+ */
+int Instruction_Load(int pid, int va){
+	int pa;
+	char* physmem = Memsim_GetPhysMem(); 
 
-// Function to get the first free physical frame number
-int Memsim_FirstFreePFN() {
-    for (int i = 0; i < NUM_PAGES; i++) {
-        for (int j = 0; j < PAGE_SIZE; j++) {
-            if (physmem[i * PAGE_SIZE + j] == 0) {
-                return i;  // Return the first free page frame number
-            }
-        }
-    }
-    return -1; // No free physical frame
-}
-
-// Function to allocate physical page for a process's page table
-int AllocatePageTable(int pid) {
-    int frame = Memsim_FirstFreePFN();
-    if (frame == -1) {
-        printf("Error: No free physical frames available for PID %d's page table.\n", pid);
-        return -1;
-    }
-
-    page_tables[pid] = (PageTableEntry*)&physmem[frame * PAGE_SIZE];
-    page_table_register[pid] = frame;
-    printf("Put page table for PID %d into physical frame %d.\n", pid, frame);
-    return frame;
-}
-
-// Function to map virtual address to physical address for a process
-int Instruction_Map(int pid, int va, int value_in) {
-    if (value_in != 0 && value_in != 1) {
-        printf("Invalid value for map instruction. Value must be 0 or 1.\n");
-        return 1;
-    }
-
-    // Check if the page table exists, if not, create it
-    if (page_tables[pid] == NULL) {
-        if (AllocatePageTable(pid) == -1) {
-            return 1; // Error allocating page table
-        }
-    }
-
-    int vpn = VPN(va);
-    // Check if the page is already mapped
-    if (page_tables[pid][vpn].pfn != -1) {
-        printf("Error: Virtual page %d already mapped into physical frame %d.\n", vpn, page_tables[pid][vpn].pfn);
-        return 1;
-    }
-
-    // Find a free physical frame and map it to the virtual page
-    int pa = Memsim_FirstFreePFN();
-    if (pa == -1) {
-        printf("Error: No free physical frames available.\n");
-        return 1;
-    }
-
-    // Map virtual page to physical page with permission
-    page_tables[pid][vpn].pfn = pa;
-    page_tables[pid][vpn].permission = value_in;
-
-    printf("Mapped virtual address %d (page %d) into physical frame %d.\n", va, vpn, pa);
-    return 0;
-}
-
-// Function to store value in a virtual address
-int Instruction_Store(int pid, int va, int value_in) {
-    int vpn = VPN(va);
-
-    // Check if the page table exists
-    if (page_tables[pid] == NULL) {
-        printf("Error: No page table for PID %d.\n", pid);
-        return 1;
-    }
-
-    // Check if the page is writable
-    if (page_tables[pid][vpn].permission == 0) {
-        printf("Error: Virtual address %d is read-only.\n", va);
-        return 1;
-    }
-
-    // Translate virtual address to physical address
-    int pa = page_tables[pid][vpn].pfn * PAGE_SIZE + PAGE_OFFSET(va);
-    if (pa < 0 || pa >= NUM_PAGES * PAGE_SIZE) {
-        printf("Error: Invalid physical address %d.\n", pa);
-        return 1;
-    }
-
-    // Store the value in physical memory
-    physmem[pa] = value_in;
-    printf("Stored value %u at virtual address %d (physical address %d)\n", value_in, va, pa);
-    return 0;
-}
-
-// Function to load value from a virtual address
-int Instruction_Load(int pid, int va) {
-    int vpn = VPN(va);
-
-    // Check if the page table exists
-    if (page_tables[pid] == NULL) {
-        printf("Error: No page table for PID %d.\n", pid);
-        return 1;
-    }
-
-    // Translate virtual address to physical address
-    int pa = page_tables[pid][vpn].pfn * PAGE_SIZE + PAGE_OFFSET(va);
-    if (pa < 0 || pa >= NUM_PAGES * PAGE_SIZE) {
-        printf("Error: Invalid physical address %d.\n", pa);
-        return 1;
-    }
-
-    // Load the value from physical memory
-    uint8_t value = physmem[pa];
-    printf("The value %u is at virtual address %d (physical address %d)\n", value, va, pa);
-    return 0;
-}
-
-int main() {
-    // Example usage
-    // Input: PID 0, map virtual address 0, with write permission (1)
-    Instruction_Map(0, 0, 1);
-    // Input: Store value 24 at virtual address 12 for PID 0
-    Instruction_Store(0, 12, 24);
-    // Input: Load value from virtual address 12 for PID 0
-    Instruction_Load(0, 12);
-
-    return 0;
+	//check for a valid value (instructions validate the value_in)
+	//todo 
+	// Hint use MMU_TranslateAddress to do a successful VA -> PA translation.
+	if (FALSE) {
+		uint8_t value = physmem[pa]; // And this value would be copied to the user program's register!
+		printf("The value %u was found at virtual address %d.\n", value, va);
+	} else {
+		printf("Error: The virtual address %d is not valid.\n", va);
+		return 1;
+	}
+	return 0;
 }

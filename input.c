@@ -13,15 +13,16 @@
 
 
 /* Private Internals */
+
 int InputStrToInt(char* inStr, int* outInt) {
-    int bytesCast;
-    bytesCast = sscanf(inStr, "%d", outInt);
-    if (bytesCast != 1) {
-        printf("Incorrectly formatted instruction.\n" \
-                  "Correct format is: process_id,instruction_type,virtual_address,value\n");
-        return FALSE;
-    }
-    return TRUE;
+	int bytesCast;
+	bytesCast = sscanf(inStr, "%d", outInt);
+	if (bytesCast != 1) {
+		printf("Incorrectly formatted instruction.\n" \
+				  "Correct format is: process_id,instruction_type,virtual_address,value\n");
+		return FALSE;
+	}
+	return TRUE;
 }
 
 void InputDispatchCommand(int pid, char* instruction_type, int virtual_address, int value) {

@@ -20,16 +20,6 @@ typedef struct{
 	int present;
 } ptRegister;
 
-// Define the structure for a Page Table Entry (PTE)
-typedef struct {
-    int PFN;        // Physical Frame Number
-    int valid;      // Valid bit (1 if the entry is valid, 0 otherwise)
-    int protection; // Protection bit (e.g., 1 for read-write, 0 for read-only)
-    int present;    // Present bit (1 if the page is in memory, 0 if swapped out)
-    int referenced; // Referenced bit (1 if the page has been accessed)
-} PTE;
-
-
 // Page table root pointer register values 
 // One stored for each process, swapped in to MMU when process is scheduled to run)
 ptRegister ptRegVals[NUM_PROCESSES]; 
@@ -43,28 +33,10 @@ ptRegister ptRegVals[NUM_PROCESSES];
  * The PTE contains the PFN, valid bit, protection bit, present bit, and referenced bit.
  */
 void PT_SetPTE(int pid, int VPN, int PFN, int valid, int protection, int present, int referenced) {
-    char* physmem = Memsim_GetPhysMem();
-    assert(PT_PageTableExists(pid)); // Ensure the page table exists
+	char* physmem = Memsim_GetPhysMem();
+	assert(PT_PageTableExists(pid)); // page table should exist if this is being called
 
-    // Get the physical address where the page table starts for this process
-    int ptStartPA = PT_GetRootPtrRegVal(pid);
-    if (ptStartPA == -1) {
-        printf("Error: Page Table does not exist for PID %d\n", pid);
-        return;
-    }
-
-    // Calculate the offset for the PTE in the page table based on the VPN
-    int ptEntryOffset = VPN * sizeof(PTE); // Assuming PTE size is sizeof(PTE)
-
-    // Access the page table entry for the given VPN
-    PTE* pte = (PTE*)(physmem + ptStartPA + ptEntryOffset);
-
-    // Set the PTE fields
-    pte->PFN = PFN;
-    pte->valid = valid;
-    pte->protection = protection;
-    pte->present = present;
-    pte->referenced = referenced;
+	//todo 
 }
 
 /* 
@@ -74,28 +46,29 @@ void PT_SetPTE(int pid, int VPN, int PFN, int valid, int protection, int present
  * If there are no free pages, evict a page to get a newly freed physical address.
  * Finally, return the physical address of the next free page.
  */
-int PT_PageTableInit(int pid, int pa) {
-    char* physmem = Memsim_GetPhysMem();
+int PT_PageTableInit(int pid, int pa){
+	char* physmem = Memsim_GetPhysMem();
 
-    // Zero out the page table space for the process
-    memset(physmem + pa, 0, PAGE_SIZE);
+	// todo 
+	// zero out the page we are about to use for the page table 
 
-    // Set the starting physical address of the page table in the page table register
-    ptRegVals[pid].ptStartPA = pa;
-    ptRegVals[pid].present = 1;
+	// set the page table's root pointer register value
 
-    return pa;
-}
-
+	// return the PA of the next free page
+	
+	// If there were no free pages,
+	// Evict one and use the new space
+	
+	return pa;
+ }
 
 /* 
  * Check the ptRegVars to see if there is a valid starting PA for the given PID's page table.
  * Returns true (non-zero) or false (zero).
  */
-int PT_PageTableExists(int pid) {
-    return ptRegVals[pid].present;
-}
-
+ int PT_PageTableExists(int pid){
+ 	return 0; //todo 
+ }
 
 /* 
  * Returns the starting physical address of the page table for the given PID.
@@ -103,20 +76,15 @@ int PT_PageTableExists(int pid) {
  * If the page table is not in memory, first swaps it in to physical memory.
  * Finally, returns the starting physical address of the page table.
  */
-int PT_GetRootPtrRegVal(int pid) {
-    if (!PT_PageTableExists(pid)) {
-        printf("Error: Page table does not exist for PID %d\n", pid);
-        return -1;
-    }
+int PT_GetRootPtrRegVal(int pid){
+	//todo
+	// If the page table does not exist, return -1
 
-    // Check if the page table is in memory, otherwise swap it in
-    if (!ptRegVals[pid].present) {
-        PT_SwapIn(pid);
-    }
+	// If the page table is not in memory, swap it in
 
-    return ptRegVals[pid].ptStartPA;
+	// Return the starting physical address of the page table
+	return -1; 
 }
-
 
 /*
  * Evicts the next page. 
@@ -127,20 +95,13 @@ int PT_GetRootPtrRegVal(int pid) {
  * or another fair algorithm.
  */
 int PT_Evict() {
-    char* physmem = Memsim_GetPhysMem();
-    FILE* swapFile = MMU_GetSwapFileHandle();
+	char* physmem = Memsim_GetPhysMem();
+	FILE* swapFile = MMU_GetSwapFileHandle();
 
-    // Select the page to evict based on the eviction policy (e.g., round-robin)
-    int evictPage = pageToEvict++;
-    if (pageToEvict >= NUM_PAGES) {
-        pageToEvict = 0; // Wrap around
-    }
+	//todo
 
-    // Evict the page and return its physical address
-    // For simplicity, just use the evictPage as the PFN
-    return evictPage;
+	return 0; //todo
 }
-
 
 /*
  * Searches through the process's page table. If an entry is found containing the specified VPN, 
@@ -151,49 +112,23 @@ int PT_Evict() {
  * 
  * Otherwise, returns -1.
  */
-int PT_VPNtoPA(int pid, int VPN) {
-    char *physmem = Memsim_GetPhysMem();
+int PT_VPNtoPA(int pid, int VPN){
+	char *physmem = Memsim_GetPhysMem();
 
-    // Get the starting physical address of the page table for the given process
-    int ptStartPA = PT_GetRootPtrRegVal(pid);
-    if (ptStartPA == -1) {
-        printf("Error: Page table not found for PID %d\n", pid);
-        return -1;
-    }
+	//todo 
 
-    // Calculate the PTE offset and retrieve the PTE
-    int ptEntryOffset = VPN * sizeof(PTE);
-    PTE* pte = (PTE*)(physmem + ptStartPA + ptEntryOffset);
-
-    if (!pte->present) {
-        // If the page is not present, swap it in
-        PT_SwapIn(pid, VPN);
-    }
-
-    return pte->PFN * PAGE_SIZE + (VPN % PAGE_SIZE);  // Convert PFN to physical address
+	return -1;
 }
-
 
 /*
  * Finds the page table entry corresponding to the VPN, and checks
  * to see if the protection bit is set to 1 (readable and writable).
  * If it is 1, it returns TRUE, and FALSE if it is not found or is 0.
  */
-int PT_PIDHasWritePerm(int pid, int VPN) {
-    char* physmem = Memsim_GetPhysMem();
+int PT_PIDHasWritePerm(int pid, int VPN){
+	char* physmem = Memsim_GetPhysMem();
 
-    // Get the starting physical address of the page table for the given process
-    int ptStartPA = PT_GetRootPtrRegVal(pid);
-    if (ptStartPA == -1) {
-        printf("Error: Page table not found for PID %d\n", pid);
-        return FALSE;
-    }
-
-    // Calculate the PTE offset and retrieve the PTE
-    int ptEntryOffset = VPN * sizeof(PTE);
-    PTE* pte = (PTE*)(physmem + ptStartPA + ptEntryOffset);
-
-    return pte->protection == 1;  // Check for write permission
+	return FALSE; //todo
 }
 
 /* 
@@ -201,8 +136,6 @@ int PT_PIDHasWritePerm(int pid, int VPN) {
  * For example, -1 for the starting physical address of the page table, and FALSE for present.
  */
 void PT_Init() {
-    for (int i = 0; i < NUM_PROCESSES; i++) {
-        ptRegVals[i].ptStartPA = -1;  // Set initial page table address to -1 (invalid)
-        ptRegVals[i].present = 0;  // Mark the page table as not present initially
-    }
+
+	return; //todo
 }
