@@ -31,5 +31,8 @@
 void Memsim_Init();
 char* Memsim_GetPhysMem();
 int Memsim_FirstFreePFN();
+// Add these missing function declarations
+void Memsim_Store(int physical_address, int value);
+int Memsim_Load(int physical_address);
 
 #endif // MEMSIM_H

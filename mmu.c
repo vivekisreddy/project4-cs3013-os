@@ -1,4 +1,4 @@
-// Starting code version 1.0
+// Starting code version v1.0
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,4 +1,4 @@
-// Starting code version 1.0
+// Starting code version v1.0
 
 #include <stdio.h>
 #include <stdint.h>
@@ -29,32 +29,16 @@ int Instruction_Map(int pid, int va, int value_in){
 	//todo
 	// Find first free Physical Page (frame) and claim it for the new requested Virtual Page (containing virtual address)
 
-	int free_pfn = Memsim_FirstFreePFN();
-    if (free_pfn == -1) {
-        // No free frame found, evict a page
-        free_pfn = PT_Evict();
-        if (free_pfn == -1) {
-            printf("Error: No free pages and no pages available for eviction.\n");
-            return 1;
-        }
-    }
-
 	// If no empty page was found, we must evict a page to make room
-	// If there isn't already a page table, create one using the page found, and find a new page
-	 if (!PT_PageTableExists(pid)) {
-        int root_pfn = Memsim_FirstFreePFN();
-        if (root_pfn == -1) {
-            root_pfn = PT_Evict();
-            if (root_pfn == -1) {
-                printf("Error: No free pages available for page table allocation.\n");
-                return 1;
-            }
-        }
-        PT_PageTableInit(pid, root_pfn * PAGE_SIZE);
-		printf("Put page table for PID %d into physical frame %d.\n", pid, PFN(pa));
-    }
 
-	PT_SetPTE(pid, VPN(va), free_pfn, TRUE, value_in, TRUE, FALSE);
+	// If there isn't already a page table, create one using the page found, and find a new page
+
+		printf("Put page table for PID %d into physical frame %d.\n", pid, PFN(pa));
+
+		// Init the Page table 
+
+	// Set the PTE with vals
+
 	printf("Mapped virtual address %d (page %d) into physical frame %d.\n", va, VPN(va), PFN(pa));
 	return 0;
 }
@@ -78,14 +62,8 @@ int Instruction_Store(int pid, int va, int value_in){
 
 	// todo
 	// Translate the virtual address into its physical address for the process
-	// Hint use MMU_TranslateAddress
-	pa = MMU_TranslateAddress(pid, VPN(va), PAGE_OFFSET(va));
-    if (pa == -1) {
-        printf("Error: Virtual address %d is not mapped to physical memory.\n", va);
-        return 1;
-    } 
+	// Hint use MMU_TranslateAddress 
 
-	physmem[pa] = (char)value_in;
 	printf("Stored value %u at virtual address %d (physical address %d)\n", value_in, va, pa);
 
 	// Finally stores the value in the physical memory address, mapped from the virtual address
@@ -100,20 +78,19 @@ int Instruction_Store(int pid, int va, int value_in){
  * return the value at the physical address. Permission checking is not needed,
  * since we assume all processes have (at least) read permissions on pages.
  */
-int Instruction_Load(int pid, int va) {
-    int pa;
-    char* physmem = Memsim_GetPhysMem();
+int Instruction_Load(int pid, int va){
+	int pa;
+	char* physmem = Memsim_GetPhysMem(); 
 
-    // Translate virtual address to physical address
-    pa = MMU_TranslateAddress(pid, VPN(va), PAGE_OFFSET(va));
-    if (pa == -1) {
-        printf("Error: The virtual address %d is not valid.\n", va);
-        return 1;
-    }
-
-    // Retrieve the value from physical memory
-    uint8_t value = physmem[pa]; // Load value from memory
-
-    printf("The value %u was found at virtual address %d (physical address %d).\n", value, va, pa);
-    return 0;
+	//check for a valid value (instructions validate the value_in)
+	//todo 
+	// Hint use MMU_TranslateAddress to do a successful VA -> PA translation.
+	if (FALSE) {
+		uint8_t value = physmem[pa]; // And this value would be copied to the user program's register!
+		printf("The value %u was found at virtual address %d.\n", value, va);
+	} else {
+		printf("Error: The virtual address %d is not valid.\n", va);
+		return 1;
+	}
+	return 0;
 }
