@@ -42,48 +42,52 @@ void InputDispatchCommand(int pid, char* instruction_type, int virtual_address, 
 }
 
 int InputParseAndValidateLine(char* line, int* pidOut, char** instructionTypeOut, int* VAOut, int* valOut) {
-	//if there is input, process it
-	char* pid_string;
-	char* virtual_address_string;
-	char* value_string;
-	
-	//split instruction into its 4 parts (still strings)
-	pid_string = strtok(line, ",");
-	*instructionTypeOut = strtok(NULL, ",");
-	virtual_address_string = strtok(NULL, ",");
-	value_string = strtok(NULL, "\n");
+    //if there is input, process it
+    char* pid_string;
+    char* virtual_address_string;
+    char* value_string;
+    
+    //split instruction into its 4 parts (still strings)
+    pid_string = strtok(line, ",");
+    *instructionTypeOut = strtok(NULL, ",");
+    virtual_address_string = strtok(NULL, ",");
+    value_string = strtok(NULL, "\n"); // This might be NULL if not provided in input
 
-	//convert string containing pid to an int
-	if (!InputStrToInt(pid_string, pidOut)) {
-		return FALSE;
-	} else { // validate integer value of pid
-		if (*pidOut < 0 || *pidOut > NUM_PROCESSES-1) {
-			printf("Invalid Process Id.  Process Id must be in range 0-3.\n");
-			return FALSE;
-		}
-	}
+    //convert string containing pid to an int
+    if (!InputStrToInt(pid_string, pidOut)) {
+        return FALSE;
+    } else { // validate integer value of pid
+        if (*pidOut < 0 || *pidOut > NUM_PROCESSES-1) {
+            printf("Invalid Process Id.  Process Id must be in range 0-3.\n");
+            return FALSE;
+        }
+    }
 
-	//convert string containing virtual address to an int
-	if (!InputStrToInt(virtual_address_string, VAOut)) {
-		return FALSE;
-	} else {
-		if (*VAOut < 0 || *VAOut > VIRTUAL_SIZE-1) { // validate integer value of virtual address
-			printf("Invalid Virtual Address.  Virtual Address must be in range 0-63.\n");
-			return FALSE;
-		}
-	}
+    //convert string containing virtual address to an int
+    if (!InputStrToInt(virtual_address_string, VAOut)) {
+        return FALSE;
+    } else {
+        if (*VAOut < 0 || *VAOut > VIRTUAL_SIZE-1) { // validate integer value of virtual address
+            printf("Invalid Virtual Address.  Virtual Address must be in range 0-63.\n");
+            return FALSE;
+        }
+    }
 
-	//convert string containing value to an int, check for NA in case of load instruction
-	//further value validation is done by the instruction implementations
-	if(strcmp(value_string,"NA") == 0){
-		*valOut = -1;
-	} else {
-		if (!InputStrToInt(value_string, valOut)) {
-			return FALSE;
-		}
-	}
+    // Handle the "value" field properly
+   if (strcmp(*instructionTypeOut, "load") == 0) {
+    if (value_string == NULL || (strcmp(value_string, "NA") != 0 && strcmp(value_string, "0") != 0)) {
+        printf("Incorrectly formatted instruction.\nValue should be NA or 0 for the load instruction.\n");
+        return FALSE;
+    }
+    *valOut = -1; // Assign -1 when "NA" or "0" is provided
+    } else {
+        if (!InputStrToInt(value_string, valOut)) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
 }
-
 
 /*
  * Public Interface: 

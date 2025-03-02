@@ -23,80 +23,92 @@ typedef struct{
 // One stored for each process, swapped in with process)
 ptRegister ptRegVals[NUM_PROCESSES]; 
 
-/*
- * Public Interface:
- */
 void PT_SetPTE(int pid, int VPN, int PFN, int valid, int protection, int present, int referenced) {
-	char* physmem = Memsim_GetPhysMem();
-	//todo
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (VPN * 4);
+
+    physmem[entry] = PFN;
+    physmem[entry + 1] = valid;
+    physmem[entry + 2] = protection;
+    physmem[entry + 3] = present;
+}
+int PT_PageTableInit(int pid, int pa) {
+    char* physmem = Memsim_GetPhysMem();
+
+    for (int i = 0; i < NUM_PAGES * 4; i += 4) {
+        physmem[pa + i] = -1;
+    }
+
+    ptRegVals[pid].ptStartPA = pa;
+    ptRegVals[pid].present = 1;
+
+    // Move the print statement here so it gets printed even if PT_PageTableInit is called elsewhere
+    printf("Put page table for PID %d into physical frame %d\n", pid, pa);
+    
+    return pa;
 }
 
-/* 
- * Set all PTE valid bits to zero (invalid)
- * Returns a new page for the map instruction
- */
-int PT_PageTableInit(int pid, int pa){
-	char* physmem = Memsim_GetPhysMem();
-	// todo
-	return 0;
- }
 
- void PT_PageTableCreate(int pid, int pa){
-	//todo
- }
-
- int PT_PageTableExists(int pid){
-	//todo
- }
-
-/* Gets the location of the start of the page table. If it is on disk, brings it into memory. */
-int PT_GetRootPtrRegVal(int pid){
-	// todo
-	return 0;
+void PT_PageTableCreate(int pid, int pa) {
+    if (!PT_PageTableExists(pid)) {
+        PT_PageTableInit(pid, pa);
+    }
 }
 
-/*
- * Evicts the next page. 
- * Updates the corresponding information in the page table, returns the location that was evicted.
- * 
- * The supplied input and output used in autotest.sh *RR tests, uses the round-robin algorithm. 
- * You may also implement the simple and powerful Least Recently Used (LRU) policy, 
- * or another fair algorithm.
- */
+int PT_PageTableExists(int pid) {
+    return ptRegVals[pid].present;
+}
+
+int PT_GetRootPtrRegVal(int pid) {
+    if (!PT_PageTableExists(pid)) {
+        int pa = Memsim_FirstFreePFN();
+        PT_PageTableCreate(pid, pa);
+    }
+    return ptRegVals[pid].ptStartPA;
+}
+
 int PT_Evict() {
-	char* physmem = Memsim_GetPhysMem();
-	FILE* swapFile = MMU_GetSwapFileHandle();
-	//todo
-	return 0;
+    char* physmem = Memsim_GetPhysMem();
+    FILE* swapFile = MMU_GetSwapFileHandle();
+    int evictPage = pageToEvict * PAGE_SIZE;
+    pageToEvict = (pageToEvict + 1) % NUM_PAGES;
+    fwrite(&physmem[evictPage], PAGE_SIZE, 1, swapFile);
+    memset(&physmem[evictPage], 0, PAGE_SIZE);
+    return evictPage;
 }
 
-/*
- * Searches through the process's page table. If an entry is found containing the specified VPN, 
- * return the address of the start of the corresponding physical page frame in physical memory. 
- *
- * If the physical page is not present, first swaps in the phyical page from the physical disk,
- * and returns the physical address.
- * 
- * Otherwise, returns -1.
- */
-int PT_VPNtoPA(int pid, int VPN){
-	char *physmem = Memsim_GetPhysMem();
-	//todo
-	return -1;
+int PT_VPNtoPA(int pid, int VPN) {
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (VPN * 4);
+
+    if (physmem[entry + 1] == 1) {
+        return physmem[entry] * PAGE_SIZE;
+    }
+    return -1;
 }
 
-/*
- * Finds the page table entry corresponding to the VPN, and checks
- * to see if the protection bit is set to 1 (readable and writable).
- * If it is 1, it returns TRUE, and FALSE if it is not found or is 0.
- */
-int PT_PIDHasWritePerm(int pid, int VPN){
-	char* physmem = Memsim_GetPhysMem();
-	//todo
-	return 0;
+int PT_PIDHasWritePerm(int pid, int VPN) {
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (VPN * 4);
+
+    if (physmem[entry + 1] == 1 && physmem[entry + 2] == 1) {
+        return TRUE;
+    }
+    return FALSE;
 }
 
-/* Initialize the register values for each page table location (per process). */
+void PT_SetSwapped(int frame, int swapSlot) {
+    // Implementation for marking the page as swapped
+    printf("Frame %d is swapped to swap slot %d\n", frame, swapSlot);
+}
+
+
 void PT_Init() {
-	//todo
+    for (int i = 0; i < NUM_PROCESSES; i++) {
+        ptRegVals[i].ptStartPA = -1;
+        ptRegVals[i].present = 0;
+    }
 }

@@ -34,5 +34,9 @@ int Memsim_FirstFreePFN();
 // Add these missing function declarations
 void Memsim_Store(int physical_address, int value);
 int Memsim_Load(int physical_address);
+void PT_SetSwapped(int frame, int swapSlot);
+int Memsim_EvictPage();
+
+
 
 #endif // MEMSIM_H
