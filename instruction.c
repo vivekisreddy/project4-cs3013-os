@@ -1,5 +1,3 @@
-// Starting code version v1.0
-
 #include <stdio.h>
 #include <stdint.h>
 
@@ -7,90 +5,76 @@
 #include "pagetable.h"
 #include "mmu.h"
 
-/*
- * Searches the memory for a free page, and assigns it to the process's virtual address. If value is
- * 0, the page has read only permissions, and if it is 1, it has read/write permissions.
- * If the process does not already have a page table, one is assigned to it. If there are no more empty
- * pages, the mapping fails.
- */
-int Instruction_Map(int pid, int va, int value_in){
-	int pa;
-	char* physmem = Memsim_GetPhysMem();
+int Instruction_Map(int pid, int va, int value_in) {
+    int vpn = VPN(va);
+    PageTableEntry* pte = PT_GetPTE(pid, vpn);
 
-	if (value_in != 0 && value_in != 1) { //check for a valid value (instructions validate the value_in)
-		printf("Invalid value for map instruction. Value must be 0 or 1.\n");
-		return 1;
-	}
-	if((pa = PT_VPNtoPA(pid, VPN(va))) != -1) {
-		printf("Error: Virtual page already mapped into physical frame %d.\n", PFN(pa));
-		return 1;
-	} 
+    if (pte != NULL) { // If page is already mapped
+        if (pte->rw_bit == 0 && value_in == 1) {
+            PT_UpdateWritePerm(pid, vpn, 1);
+            printf("Updating permissions for virtual page %d (frame %d)\n", vpn, pte->PFN);
+        } else {
+            printf("Error: virtual page %d is already mapped with rw_bit=%d\n", vpn, pte->rw_bit);
+        }
+        return 0;  
+    }
 
-	//todo
-	// Find first free Physical Page (frame) and claim it for the new requested Virtual Page (containing virtual address)
+    // Ensure page table exists
+    if (!PT_PageTableExists(pid)) {
+        int pt_frame = (pid == 0) ? 0 : 1;
+        PT_PageTableCreate(pid, pt_frame);
+        printf("Put page table for PID %d into physical frame %d\n", pid, pt_frame);
+    }
 
-	// If no empty page was found, we must evict a page to make room
+    int frame = Memsim_FirstFreePFN();
+    if (frame == -1) {
+        frame = PT_Evict(); // Evict if necessary
+    }
 
-	// If there isn't already a page table, create one using the page found, and find a new page
-
-		printf("Put page table for PID %d into physical frame %d.\n", pid, PFN(pa));
-
-		// Init the Page table 
-
-	// Set the PTE with vals
-
-	printf("Mapped virtual address %d (page %d) into physical frame %d.\n", va, VPN(va), PFN(pa));
-	return 0;
+    PT_SetPTE(pid, vpn, frame, 1, value_in, 1, 0);
+    printf("Mapped virtual address %d (page %d) into physical frame %d\n", va, vpn, frame);
+    return 0;
 }
 
-/**
-* If the virtual address is valid and has write permissions for the process, store
-* value in the virtual address specified.
-*/
-int Instruction_Store(int pid, int va, int value_in){
-	int pa;
-	char* physmem = Memsim_GetPhysMem();
 
-	if (value_in < 0 || value_in > MAX_VA) { //check for a valid value (instructions validate the value_in)
-		printf("Invalid value for store instruction. Value must be 0-255.\n"); 
-		return 1;
-	}
-	if (!PT_PIDHasWritePerm(pid, VPN(va))) { //check if memory is writable
-		printf("Error: virtual address %d does not have write permissions.\n", va);
-		return 1;
-	}
 
-	// todo
-	// Translate the virtual address into its physical address for the process
-	// Hint use MMU_TranslateAddress 
+int Instruction_Store(int pid, int va, int value_in) {
+    int vpn = VPN(va);
+    int offset = PAGE_OFFSET(va);
+    int pa = MMU_TranslateAddress(pid, vpn, offset);
 
-	printf("Stored value %u at virtual address %d (physical address %d)\n", value_in, va, pa);
+    if (pa == -1) {
+        printf("Error: Virtual address %d is not mapped.\n", va);
+        return 1;
+    }
 
-	// Finally stores the value in the physical memory address, mapped from the virtual address
-	// Hint, modify a byte in physmem using a pa and value_in
+    if (!PT_GetWritePerm(pid, vpn)) {  // If write permission is not allowed
+        printf("Error: writes are not allowed to this page\n");
+        return 1;
+    }
 
-	return 0;
+    Memsim_Store(pa, value_in);
+    printf("Stored value %u at virtual address %d (physical address %d)\n", value_in, va, pa);
+    return 0;
 }
 
-/*
- * Translate the virtual address into its physical address for
- * the process. If the virutal memory is mapped to valid physical memory, 
- * return the value at the physical address. Permission checking is not needed,
- * since we assume all processes have (at least) read permissions on pages.
- */
-int Instruction_Load(int pid, int va){
-	int pa;
-	char* physmem = Memsim_GetPhysMem(); 
 
-	//check for a valid value (instructions validate the value_in)
-	//todo 
-	// Hint use MMU_TranslateAddress to do a successful VA -> PA translation.
-	if (FALSE) {
-		uint8_t value = physmem[pa]; // And this value would be copied to the user program's register!
-		printf("The value %u was found at virtual address %d.\n", value, va);
-	} else {
-		printf("Error: The virtual address %d is not valid.\n", va);
-		return 1;
-	}
-	return 0;
+int Instruction_Load(int pid, int va) {
+    int vpn = VPN(va);
+    int offset = PAGE_OFFSET(va);
+    int pa = MMU_TranslateAddress(pid, vpn, offset);
+
+    if (pa == -1) { // If page is not in memory, swap it in
+        int evicted_frame = PT_Evict();
+        int swap_slot = Memsim_SwapOut(evicted_frame);
+        printf("Swapped frame %d to disk at swap slot %d\n", evicted_frame, swap_slot);
+
+        int new_frame = Memsim_SwapIn(pid, vpn, swap_slot);
+        printf("Swapped disk slot %d into frame %d\n", swap_slot, new_frame);
+        pa = MMU_TranslateAddress(pid, vpn, offset);
+    }
+
+    int value = Memsim_Load(pa);
+    printf("The value %d is virtual address %d (physical address %d)\n", value, va, pa);
+    return 0;
 }

@@ -1,5 +1,3 @@
-// Starting code version 1.0 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,89 +12,158 @@
 
 int pageToEvict = 1;
 
-typedef struct{
-	int ptStartPA;
-	int present;
+typedef struct {
+    int ptStartPA;
+    int present;
 } ptRegister;
 
-// Page table root pointer register values 
-// One stored for each process, swapped in with process)
-ptRegister ptRegVals[NUM_PROCESSES]; 
+ptRegister ptRegVals[NUM_PROCESSES];  // Stores page table root for each process
 
-/*
- * Public Interface:
- */
+// Function to set a page table entry
 void PT_SetPTE(int pid, int VPN, int PFN, int valid, int protection, int present, int referenced) {
-	char* physmem = Memsim_GetPhysMem();
-	//todo
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (VPN * 5);  // 5 bytes per entry now to store swap info
+
+    physmem[entry] = PFN;
+    physmem[entry + 1] = valid;
+    physmem[entry + 2] = protection;
+    physmem[entry + 3] = present;
+    physmem[entry + 4] = referenced;  // Use this for swap_offset if needed
 }
 
-/* 
- * Set all PTE valid bits to zero (invalid)
- * Returns a new page for the map instruction
- */
-int PT_PageTableInit(int pid, int pa){
-	char* physmem = Memsim_GetPhysMem();
-	// todo
-	return 0;
- }
+PageTableEntry* PT_GetPTE(int pid, int vpn) {
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (vpn * 5);
 
- void PT_PageTableCreate(int pid, int pa){
-	//todo
- }
+    static PageTableEntry pte;
+    pte.PFN = physmem[entry];
+    pte.valid = physmem[entry + 1];
+    pte.protection = physmem[entry + 2];
+    pte.present = physmem[entry + 3];
+    pte.referenced = physmem[entry + 4];
+    pte.rw_bit = pte.protection;  // Assuming rw_bit is the same as protection flag
 
- int PT_PageTableExists(int pid){
-	//todo
- }
+    if (!pte.valid) return NULL; // If entry is invalid, return NULL
 
-/* Gets the location of the start of the page table. If it is on disk, brings it into memory. */
-int PT_GetRootPtrRegVal(int pid){
-	// todo
-	return 0;
+    return &pte;
 }
 
-/*
- * Evicts the next page. 
- * Updates the corresponding information in the page table, returns the location that was evicted.
- * 
- * The supplied input and output used in autotest.sh *RR tests, uses the round-robin algorithm. 
- * You may also implement the simple and powerful Least Recently Used (LRU) policy, 
- * or another fair algorithm.
- */
+// Initialize a page table for a process
+int PT_PageTableInit(int pid, int pa) {
+    char* physmem = Memsim_GetPhysMem();
+
+    for (int i = 0; i < NUM_PAGES * 5; i += 5) {
+        physmem[pa + i] = -1;  // Mark all VPNs as invalid
+    }
+
+    ptRegVals[pid].ptStartPA = pa;
+    ptRegVals[pid].present = 1;
+
+    printf("Put page table for PID %d into physical frame %d\n", pid, pa);
+    
+    return pa;
+}
+
+// Create page table if it does not exist
+void PT_PageTableCreate(int pid, int pa) {
+    if (!PT_PageTableExists(pid)) {
+        PT_PageTableInit(pid, pa);
+    }
+	
+}
+
+// Check if page table exists
+int PT_PageTableExists(int pid) {
+    return ptRegVals[pid].present;
+}
+
+// Get root pointer register value (i.e., page table location)
+int PT_GetRootPtrRegVal(int pid) {
+    if (!PT_PageTableExists(pid)) {
+        int pa = Memsim_FirstFreePFN();
+        PT_PageTableCreate(pid, pa);
+    }
+    return ptRegVals[pid].ptStartPA;
+}
+
+// Evict a page from memory to swap file
 int PT_Evict() {
-	char* physmem = Memsim_GetPhysMem();
-	FILE* swapFile = MMU_GetSwapFileHandle();
-	//todo
-	return 0;
+    char* physmem = Memsim_GetPhysMem();
+    FILE* swapFile = MMU_GetSwapFileHandle();
+    
+    int evictPage = pageToEvict * PAGE_SIZE;
+    pageToEvict = (pageToEvict + 1) % NUM_PAGES;  // Round-Robin eviction
+
+    // Write the page to swap space
+    fseek(swapFile, evictPage, SEEK_SET);
+    fwrite(&physmem[evictPage], PAGE_SIZE, 1, swapFile);
+    
+    // Mark page as swapped and clear memory
+    memset(&physmem[evictPage], 0, PAGE_SIZE);
+
+    return evictPage;  // Return swap offset
 }
 
-/*
- * Searches through the process's page table. If an entry is found containing the specified VPN, 
- * return the address of the start of the corresponding physical page frame in physical memory. 
- *
- * If the physical page is not present, first swaps in the phyical page from the physical disk,
- * and returns the physical address.
- * 
- * Otherwise, returns -1.
- */
-int PT_VPNtoPA(int pid, int VPN){
-	char *physmem = Memsim_GetPhysMem();
-	//todo
-	return -1;
+// Translate VPN to physical address, handling swap if needed
+int PT_VPNtoPA(int pid, int VPN) {
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (VPN * 5);
+
+    if (physmem[entry + 1] == 1) {
+        return physmem[entry] * PAGE_SIZE;  // Page is in memory
+    }
+
+    // If page is swapped, bring it back from swap space
+    int swap_offset = physmem[entry + 4];
+    if (swap_offset >= 0) {
+        FILE* swapFile = MMU_GetSwapFileHandle();
+        int newFrame = Memsim_FirstFreePFN();
+        fseek(swapFile, swap_offset, SEEK_SET);
+        fread(&physmem[newFrame * PAGE_SIZE], PAGE_SIZE, 1, swapFile);
+        
+        // Update page table (now correctly with 5-byte entries)
+        PT_SetPTE(pid, VPN, newFrame, 1, 1, 1, -1);
+        return newFrame * PAGE_SIZE;
+    }
+
+    return -1;  // Page not found
 }
 
-/*
- * Finds the page table entry corresponding to the VPN, and checks
- * to see if the protection bit is set to 1 (readable and writable).
- * If it is 1, it returns TRUE, and FALSE if it is not found or is 0.
- */
-int PT_PIDHasWritePerm(int pid, int VPN){
-	char* physmem = Memsim_GetPhysMem();
-	//todo
-	return 0;
+// Check if process has write permissions to a page
+int PT_PIDHasWritePerm(int pid, int VPN) {
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (VPN * 5);
+
+    if (physmem[entry + 1] == 1 && physmem[entry + 2] == 1) {
+        return TRUE;
+    }
+    return FALSE;
 }
 
-/* Initialize the register values for each page table location (per process). */
+int PT_GetWritePerm(int pid, int vpn) {
+    PageTableEntry* pte = PT_GetPTE(pid, vpn);
+    if (pte == NULL) return 0; // If no mapping exists, assume no write permission
+    return pte->rw_bit; // Return read/write permission bit
+}
+
+void PT_UpdateWritePerm(int pid, int vpn, int new_perm) {
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (vpn * 5); // Offset for 5-byte page table entry
+
+    physmem[entry + 2] = new_perm; // Update write permission
+}
+
+
+
+// Initialize all process page tables
 void PT_Init() {
-	//todo
+    for (int i = 0; i < NUM_PROCESSES; i++) {
+        ptRegVals[i].ptStartPA = -1;
+        ptRegVals[i].present = 0;
+    }
 }
