@@ -5,6 +5,7 @@
 #include "pagetable.h"
 #include "mmu.h"
 
+
 int Instruction_Map(int pid, int va, int value_in) {
     int vpn = VPN(va);
     PageTableEntry* pte = PT_GetPTE(pid, vpn);
@@ -21,7 +22,7 @@ int Instruction_Map(int pid, int va, int value_in) {
 
     // Ensure page table exists
     if (!PT_PageTableExists(pid)) {
-        int pt_frame = (pid == 0) ? 0 : 1;
+        int pt_frame = (pid == 0) ? 0 : Memsim_FirstFreePFN(); // Ensure frame 0 for PID 0
         PT_PageTableCreate(pid, pt_frame);
         printf("Put page table for PID %d into physical frame %d\n", pid, pt_frame);
     }
@@ -35,8 +36,6 @@ int Instruction_Map(int pid, int va, int value_in) {
     printf("Mapped virtual address %d (page %d) into physical frame %d\n", va, vpn, frame);
     return 0;
 }
-
-
 
 int Instruction_Store(int pid, int va, int value_in) {
     int vpn = VPN(va);
@@ -57,6 +56,9 @@ int Instruction_Store(int pid, int va, int value_in) {
     printf("Stored value %u at virtual address %d (physical address %d)\n", value_in, va, pa);
     return 0;
 }
+
+
+
 
 
 int Instruction_Load(int pid, int va) {

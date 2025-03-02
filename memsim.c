@@ -49,9 +49,9 @@ char* Memsim_GetPhysMem() {
  * of the page. If there are no free pages, returns -1;
  */
 int Memsim_FirstFreePFN() {
-    for (int i = 1; i < NUM_PAGES; i++) {  
+    for (int i = 0; i < NUM_PAGES; i++) {  // Ensure frame 0 is used for page table
         if (freePages[i] == 0) {
-            printf("Allocating frame %d\n", i);  // Debug print
+            printf("Allocating frame %d\n", i);
             freePages[i] = 1;
             return i;
         }
