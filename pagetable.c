@@ -19,16 +19,24 @@ typedef struct {
 
 ptRegister ptRegVals[NUM_PROCESSES];  // Stores page table root for each process
 
+<<<<<<< HEAD
 // Function to set a page table entry
 void PT_SetPTE(int pid, int VPN, int PFN, int valid, int protection, int present, int referenced) {
     char* physmem = Memsim_GetPhysMem();
     int pt_base = PT_GetRootPtrRegVal(pid);
     int entry = pt_base + (VPN * 5);  // 5 bytes per entry now to store swap info
+=======
+void PT_SetPTE(int pid, int VPN, int PFN, int valid, int protection, int present, int referenced) {
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (VPN * 4);
+>>>>>>> 6e52b80ec79db43d862435d37c7e1c431f5261ca
 
     physmem[entry] = PFN;
     physmem[entry + 1] = valid;
     physmem[entry + 2] = protection;
     physmem[entry + 3] = present;
+<<<<<<< HEAD
     physmem[entry + 4] = referenced;  // Use this for swap_offset if needed
 }
 
@@ -137,6 +145,69 @@ int PT_PIDHasWritePerm(int pid, int VPN) {
     char* physmem = Memsim_GetPhysMem();
     int pt_base = PT_GetRootPtrRegVal(pid);
     int entry = pt_base + (VPN * 5);
+=======
+}
+int PT_PageTableInit(int pid, int pa) {
+    char* physmem = Memsim_GetPhysMem();
+
+    for (int i = 0; i < NUM_PAGES * 4; i += 4) {
+        physmem[pa + i] = -1;
+    }
+
+    ptRegVals[pid].ptStartPA = pa;
+    ptRegVals[pid].present = 1;
+
+    // Move the print statement here so it gets printed even if PT_PageTableInit is called elsewhere
+    printf("Put page table for PID %d into physical frame %d\n", pid, pa);
+    
+    return pa;
+}
+
+
+void PT_PageTableCreate(int pid, int pa) {
+    if (!PT_PageTableExists(pid)) {
+        PT_PageTableInit(pid, pa);
+    }
+}
+
+int PT_PageTableExists(int pid) {
+    return ptRegVals[pid].present;
+}
+
+int PT_GetRootPtrRegVal(int pid) {
+    if (!PT_PageTableExists(pid)) {
+        int pa = Memsim_FirstFreePFN();
+        PT_PageTableCreate(pid, pa);
+    }
+    return ptRegVals[pid].ptStartPA;
+}
+
+int PT_Evict() {
+    char* physmem = Memsim_GetPhysMem();
+    FILE* swapFile = MMU_GetSwapFileHandle();
+    int evictPage = pageToEvict * PAGE_SIZE;
+    pageToEvict = (pageToEvict + 1) % NUM_PAGES;
+    fwrite(&physmem[evictPage], PAGE_SIZE, 1, swapFile);
+    memset(&physmem[evictPage], 0, PAGE_SIZE);
+    return evictPage;
+}
+
+int PT_VPNtoPA(int pid, int VPN) {
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (VPN * 4);
+
+    if (physmem[entry + 1] == 1) {
+        return physmem[entry] * PAGE_SIZE;
+    }
+    return -1;
+}
+
+int PT_PIDHasWritePerm(int pid, int VPN) {
+    char* physmem = Memsim_GetPhysMem();
+    int pt_base = PT_GetRootPtrRegVal(pid);
+    int entry = pt_base + (VPN * 4);
+>>>>>>> 6e52b80ec79db43d862435d37c7e1c431f5261ca
 
     if (physmem[entry + 1] == 1 && physmem[entry + 2] == 1) {
         return TRUE;
@@ -144,6 +215,7 @@ int PT_PIDHasWritePerm(int pid, int VPN) {
     return FALSE;
 }
 
+<<<<<<< HEAD
 int PT_GetWritePerm(int pid, int vpn) {
     PageTableEntry* pte = PT_GetPTE(pid, vpn);
     if (pte == NULL) return 0; // If no mapping exists, assume no write permission
@@ -161,6 +233,8 @@ void PT_UpdateWritePerm(int pid, int vpn, int new_perm) {
 
 
 // Initialize all process page tables
+=======
+>>>>>>> 6e52b80ec79db43d862435d37c7e1c431f5261ca
 void PT_Init() {
     for (int i = 0; i < NUM_PROCESSES; i++) {
         ptRegVals[i].ptStartPA = -1;

@@ -19,6 +19,7 @@ int PT_PIDHasWritePerm(int process_id, int VPN);
 void PT_Init();
 int PT_Map(int process_id, int VPN, int frame);
 void PT_PageTableCreate(int pid, int pfn);
+<<<<<<< HEAD
 int PT_GetWritePerm(int pid, int vpn);
 void PT_UpdateWritePerm(int pid, int vpn, int new_perm);
 typedef struct {
@@ -31,3 +32,5 @@ typedef struct {
 } PageTableEntry;
 
 PageTableEntry* PT_GetPTE(int pid, int vpn); // Function prototype
+=======
+>>>>>>> 6e52b80ec79db43d862435d37c7e1c431f5261ca

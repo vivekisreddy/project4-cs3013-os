@@ -56,10 +56,9 @@ int Memsim_FirstFreePFN() {
             return i;
         }
     }
+
     return -1;
 }
-
-
 
 void Memsim_Store(int physical_address, int value) {
     char* physmem = Memsim_GetPhysMem();
@@ -102,3 +101,4 @@ int Memsim_SwapIn(int pid, int vpn, int swap_slot) {
     PT_SetPTE(pid, vpn, new_frame, 1, 1, 1, 0);
     return new_frame;
 }
+
