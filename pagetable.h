@@ -18,3 +18,4 @@ int PT_VPNtoPA(int process_id, int VPN);
 int PT_PIDHasWritePerm(int process_id, int VPN);
 void PT_Init();
 int PT_Map(int process_id, int VPN, int frame);
+void PT_PageTableCreate(int pid, int pfn);

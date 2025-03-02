@@ -57,3 +57,13 @@ int Memsim_FirstFreePFN(){
     }
 	return -1;
 }
+
+void Memsim_Store(int physical_address, int value) {
+    char* physmem = Memsim_GetPhysMem();
+    physmem[physical_address] = (char)value;
+}
+
+int Memsim_Load(int physical_address) {
+    char* physmem = Memsim_GetPhysMem();
+    return (int)(unsigned char)physmem[physical_address];
+}
