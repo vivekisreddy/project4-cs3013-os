@@ -114,31 +114,26 @@ int PT_Evict() {
     return evictPage;  // Return swap offset
 }
 
-// Translate VPN to physical address, handling swap if needed
 int PT_VPNtoPA(int pid, int VPN) {
     char* physmem = Memsim_GetPhysMem();
     int pt_base = PT_GetRootPtrRegVal(pid);
     int entry = pt_base + (VPN * 5);
 
-    if (physmem[entry + 1] == 1) {
-        return physmem[entry] * PAGE_SIZE;  // Page is in memory
+    if (physmem[entry + 1] == 1) { // Page is in memory
+        return (physmem[entry] * PAGE_SIZE);  
     }
 
-    // If page is swapped, bring it back from swap space
     int swap_offset = physmem[entry + 4];
     if (swap_offset >= 0) {
-        FILE* swapFile = MMU_GetSwapFileHandle();
-        int newFrame = Memsim_FirstFreePFN();
-        fseek(swapFile, swap_offset, SEEK_SET);
-        fread(&physmem[newFrame * PAGE_SIZE], PAGE_SIZE, 1, swapFile);
-        
-        // Update page table (now correctly with 5-byte entries)
-        PT_SetPTE(pid, VPN, newFrame, 1, 1, 1, -1);
+        int newFrame = Memsim_SwapIn(pid, VPN, swap_offset);
+        if (newFrame == -1) return -1;
         return newFrame * PAGE_SIZE;
     }
 
     return -1;  // Page not found
 }
+
+
 
 // Check if process has write permissions to a page
 int PT_PIDHasWritePerm(int pid, int VPN) {

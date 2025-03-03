@@ -5,7 +5,6 @@
 #include "pagetable.h"
 #include "mmu.h"
 
-<<<<<<< HEAD
 int Instruction_Map(int pid, int va, int value_in) {
     int vpn = VPN(va);
     PageTableEntry* pte = PT_GetPTE(pid, vpn);
@@ -22,7 +21,7 @@ int Instruction_Map(int pid, int va, int value_in) {
 
     // Ensure page table exists
     if (!PT_PageTableExists(pid)) {
-        int pt_frame = (pid == 0) ? 0 : 1;
+        int pt_frame = (pid == 0) ? 0 : Memsim_FirstFreePFN(); // Ensure frame 0 for PID 0
         PT_PageTableCreate(pid, pt_frame);
         printf("Put page table for PID %d into physical frame %d\n", pid, pt_frame);
     }
@@ -34,7 +33,7 @@ int Instruction_Map(int pid, int va, int value_in) {
 
     PT_SetPTE(pid, vpn, frame, 1, value_in, 1, 0);
     printf("Mapped virtual address %d (page %d) into physical frame %d\n", va, vpn, frame);
-=======
+
 /*
  * Searches the memory for a free page, and assigns it to the process's virtual address. If value is
  * 0, the page has read only permissions, and if it is 1, it has read/write permissions.
@@ -81,45 +80,45 @@ int Instruction_Map(int pid, int va, int value_in) {
     // Set the page table entry
     PT_SetPTE(pid, VPN(va), PFN(pa), 1, value_in, 1, 0);
     printf("Mapped virtual address %d (page %d) into physical frame %d.\n", va, VPN(va), PFN(pa));
->>>>>>> 6e52b80ec79db43d862435d37c7e1c431f5261ca
+
     return 0;
 }
 
-
-<<<<<<< HEAD
 
 int Instruction_Store(int pid, int va, int value_in) {
     int vpn = VPN(va);
     int offset = PAGE_OFFSET(va);
     int pa = MMU_TranslateAddress(pid, vpn, offset);
 
-=======
+
 int Instruction_Store(int pid, int va, int value_in) {
     int pa = MMU_TranslateAddress(pid, VPN(va), PAGE_OFFSET(va));
->>>>>>> 6e52b80ec79db43d862435d37c7e1c431f5261ca
+
     if (pa == -1) {
         printf("Error: Virtual address %d is not mapped.\n", va);
         return 1;
     }
-<<<<<<< HEAD
+
 
     if (!PT_GetWritePerm(pid, vpn)) {  // If write permission is not allowed
         printf("Error: writes are not allowed to this page\n");
         return 1;
     }
 
-=======
+
     if (!PT_PIDHasWritePerm(pid, VPN(va))) {
         printf("Error: Virtual address %d does not have write permissions.\n", va);
         return 1;
     }
->>>>>>> 6e52b80ec79db43d862435d37c7e1c431f5261ca
+
     Memsim_Store(pa, value_in);
     printf("Stored value %u at virtual address %d (physical address %d)\n", value_in, va, pa);
     return 0;
 }
 
-<<<<<<< HEAD
+
+
+
 
 int Instruction_Load(int pid, int va) {
     int vpn = VPN(va);
@@ -136,7 +135,7 @@ int Instruction_Load(int pid, int va) {
         pa = MMU_TranslateAddress(pid, vpn, offset);
     }
 
-=======
+
 int Instruction_Load(int pid, int va) {
     int pa = MMU_TranslateAddress(pid, VPN(va), PAGE_OFFSET(va));
     
@@ -146,7 +145,6 @@ int Instruction_Load(int pid, int va) {
         return 1;
     }
 
->>>>>>> 6e52b80ec79db43d862435d37c7e1c431f5261ca
     int value = Memsim_Load(pa);
     printf("The value %d is virtual address %d (physical address %d)\n", value, va, pa);
     return 0;
